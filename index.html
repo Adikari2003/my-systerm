@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="si">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BASHAPARADEESAYA.LK - Attendance Scanner</title>
+    <!-- Html5-Qrcode Library -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <style>
+        :root {
+            --primary: #1e3c72;
+            --primary-light: #2a5298;
+            --success: #28a745;
+            --warning: #ffc107;
+            --danger: #dc3545;
+            --bg: #f0f4f8;
+            --card-bg: #ffffff;
+        }
+
+        * { box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: var(--bg); 
+            margin: 0; 
+            padding: 20px 10px; 
+            color: #333;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .header h1 {
+            color: var(--primary);
+            margin: 0;
+            font-size: 24px;
+            letter-spacing: 1px;
+        }
+        .header p {
+            color: #666;
+            margin: 5px 0 0;
+            font-size: 13px;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.06);
+        }
+
+        h2 {
+            font-size: 18px;
+            color: var(--primary);
+            margin-top: 0;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 2px solid #eef2f5;
+            padding-bottom: 10px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            font-weight: bold;
+            font-size: 14px;
+            margin-top: 10px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .btn:hover { opacity: 0.9; }
+        .btn-danger { background: linear-gradient(135deg, #dc3545, #f86c6b); }
+        .btn-small { width: auto; padding: 6px 12px; font-size: 12px; float: right; }
+
+        /* Scanner Viewport */
+        .scanner-container {
+            position: relative;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 3px solid var(--primary);
+            min-height: 250px;
+        }
+        #reader { width: 100%; border: none !important; }
+        #reader video { object-fit: cover; border-radius: 8px; }
+        
+        .scanner-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            pointer-events: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .scanner-laser {
+            width: 80%;
+            height: 2px;
+            background: #ff0055;
+            box-shadow: 0 0 15px #ff0055;
+            position: absolute;
+            animation: scan 2s infinite ease-in-out;
+        }
+        @keyframes scan {
+            0% { top: 20%; opacity: 0.3; }
+            50% { top: 80%; opacity: 1; }
+            100% { top: 20%; opacity: 0.3; }
+        }
+
+        .controls-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        /* Result Alerts */
+        .scan-result-card {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            display: none;
+            font-size: 15px;
+        }
+        .scan-result-card.success {
+            background: #e8f8f0;
+            border: 2px solid var(--success);
+            color: #155724;
+        }
+        .scan-result-card.warning {
+            background: #fff3cd;
+            border: 2px solid var(--warning);
+            color: #856404;
+        }
+
+        /* Attendance Table */
+        .table-responsive {
+            max-height: 250px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px; text-align: left; font-size: 13px; border-bottom: 1px solid #eee; }
+        th { background: #f8f9fa; color: var(--primary); font-weight: bold; position: sticky; top: 0; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>BASHAPARADEESAYA.LK</h1>
+    <p>QR Code Attendance Scanner</p>
+</div>
+
+<div class="container">
+
+    <!-- CAMERA SCANNER CARD -->
+    <div class="card">
+        <h2>📷 Scan Attendance</h2>
+        
+        <div class="scanner-container">
+            <div id="reader"></div>
+            <div class="scanner-overlay" id="scannerOverlay" style="display:none;">
+                <div class="scanner-laser"></div>
+            </div>
+        </div>
+
+        <div class="controls-row">
+            <button class="btn" id="startCamBtn" onclick="startScanner()">Start Camera</button>
+            <button class="btn btn-danger" id="stopCamBtn" onclick="stopScanner()" style="display:none;">Stop Camera</button>
+            <button class="btn" onclick="switchCamera()" id="switchCamBtn" style="display:none;">Switch Cam</button>
+        </div>
+
+        <!-- Scan Result Notification -->
+        <div id="scanResult" class="scan-result-card"></div>
+    </div>
+
+    <!-- TODAY ATTENDANCE LOG -->
+    <div class="card">
+        <h2>
+            📅 Today's Attendance Log
+            <button class="btn btn-small" onclick="exportAttendanceCSV()">Export Log (CSV)</button>
+        </h2>
+        <div class="table-responsive">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Reg No</th>
+                        <th>Name</th>
+                        <th>Time</th>
+                    </tr>
+                </thead>
+                <tbody id="attendanceTableBody">
+                    <tr><td colspan="3" style="text-align:center; color:#888;">තවම කිසිවෙක් Scan කර නැත</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<script>
+let html5QrcodeScanner = null;
+let currentFacingMode = "environment";
+let isScanning = false;
+let isProcessingScan = false; // Scan flood guard
+
+let attendanceLog = JSON.parse(localStorage.getItem("attendanceLog")) || [];
+
+window.onload = function() {
+    renderAttendanceTable();
+};
+
+// අද දිනය YYYY-MM-DD format එකෙන් ගන්නා function එක
+function getTodayDateString() {
+    let d = new Date();
+    let month = '' + (d.getMonth() + 1);
+    let day = '' + d.getDate();
+    let year = d.getFullYear();
+
+    if (month.length < 2) month = '0' + month;
+    if (day.length < 2) day = '0' + day;
+
+    return [year, month, day].join('-');
+}
+
+function startScanner() {
+    if (isScanning) return;
+
+    html5QrcodeScanner = new Html5Qrcode("reader");
+    const config = { fps: 10, qrbox: { width: 220, height: 220 } };
+
+    html5QrcodeScanner.start(
+        { facingMode: currentFacingMode },
+        config,
+        onScanSuccess
+    ).then(() => {
+        isScanning = true;
+        document.getElementById("startCamBtn").style.display = "none";
+        document.getElementById("stopCamBtn").style.display = "inline-flex";
+        document.getElementById("switchCamBtn").style.display = "inline-flex";
+        document.getElementById("scannerOverlay").style.display = "flex";
+    }).catch(err => {
+        alert("Camera එක Open කිරීමට නොහැකි විය! Camera Permissions ලබා දී ඇත්දැයි පරීක්ෂා කරන්න.");
+    });
+}
+
+function stopScanner() {
+    if (html5QrcodeScanner && isScanning) {
+        html5QrcodeScanner.stop().then(() => {
+            isScanning = false;
+            document.getElementById("startCamBtn").style.display = "inline-flex";
+            document.getElementById("stopCamBtn").style.display = "none";
+            document.getElementById("switchCamBtn").style.display = "none";
+            document.getElementById("scannerOverlay").style.display = "none";
+        });
+    }
+}
+
+function switchCamera() {
+    currentFacingMode = (currentFacingMode === "environment") ? "user" : "environment";
+    stopScanner();
+    setTimeout(startScanner, 400);
+}
+
+function onScanSuccess(decodedText) {
+    // එක පිට එක Auto-Scan වීම වැළැක්වීමට Lock කිරීම
+    if (isProcessingScan) return;
+    isProcessingScan = true;
+
+    playBeepSound();
+
+    let regNo = "";
+    let name = "";
+    let phone = "";
+
+    // Parse Data from URL or Plain Text
+    if (decodedText.includes("reg=") || decodedText.includes("name=")) {
+        try {
+            let url = new URL(decodedText);
+            regNo = url.searchParams.get("reg") || "";
+            name = url.searchParams.get("name") || "";
+            phone = url.searchParams.get("phone") || "";
+        } catch(e) {}
+    } else {
+        let lines = decodedText.split("\n");
+        lines.forEach(l => {
+            if(l.startsWith("Reg:")) regNo = l.replace("Reg:", "").trim();
+            if(l.startsWith("Name:")) name = l.replace("Name:", "").trim();
+            if(l.startsWith("Phone:")) phone = l.replace("Phone:", "").trim();
+        });
+    }
+
+    if (!regNo) {
+        showScanResult("warning", "⚠️ වැරදි QR Code එකක්!");
+        setTimeout(() => { isProcessingScan = false; }, 2500);
+        return;
+    }
+
+    let todayStr = getTodayDateString();
+
+    // අද දින සඳහා මීට පෙර Scan කර ඇත්දැයි Strict ලෙස Check කිරීම
+    let alreadyScanned = attendanceLog.find(a => a.regNo === regNo && a.date === todayStr);
+
+    if (alreadyScanned) {
+        showScanResult("warning", `⚠️ <b>${name || regNo}</b> අද දින සඳහා මීට පෙර Scan කර ඇත!<br><small>Scan කළ වේලාව: ${alreadyScanned.time}</small>`);
+    } else {
+        let now = new Date();
+        let timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+        attendanceLog.push({ regNo, name, phone, date: todayStr, time: timeStr });
+        localStorage.setItem("attendanceLog", JSON.stringify(attendanceLog));
+        
+        renderAttendanceTable();
+        showScanResult("success", `✅ <b>${name || regNo}</b> පැමිණීම සටහන් කරගන්නා ලදී!<br><small>වේලාව: ${timeStr}</small>`);
+    }
+
+    // ඊළඟ Scan එක සඳහා තත්පර 3ක Delay එකක් තැබීම
+    setTimeout(() => {
+        isProcessingScan = false;
+    }, 3000);
+}
+
+function showScanResult(type, message) {
+    let resultBox = document.getElementById("scanResult");
+    resultBox.className = `scan-result-card ${type}`;
+    resultBox.innerHTML = message;
+    resultBox.style.display = "block";
+
+    setTimeout(() => {
+        resultBox.style.display = "none";
+    }, 3000);
+}
+
+function playBeepSound() {
+    try {
+        let context = new (window.AudioContext || window.webkitAudioContext)();
+        let osc = context.createOscillator();
+        let gain = context.createGain();
+        osc.type = "sine";
+        osc.frequency.value = 800;
+        osc.connect(gain);
+        gain.connect(context.destination);
+        osc.start();
+        setTimeout(() => osc.stop(), 150);
+    } catch(e) {}
+}
+
+function renderAttendanceTable() {
+    let tbody = document.getElementById("attendanceTableBody");
+    tbody.innerHTML = "";
+
+    let todayStr = getTodayDateString();
+    let todayLogs = attendanceLog.filter(a => a.date === todayStr);
+
+    if (todayLogs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:#888;">තවම කිසිවෙක් Scan කර නැත</td></tr>`;
+        return;
+    }
+
+    todayLogs.forEach(a => {
+        tbody.innerHTML += `<tr>
+            <td><b>${a.regNo}</b></td>
+            <td>${a.name || 'Student'}</td>
+            <td>${a.time}</td>
+        </tr>`;
+    });
+}
+
+function exportAttendanceCSV() {
+    if (attendanceLog.length === 0) return alert("Export කිරීමට Attendance දත්ත නැත!");
+    let csv = "Date,Time,Reg No,Name,Phone\n" + attendanceLog.map(a => `${a.date},${a.time},${a.regNo},${a.name || ''},${a.phone || ''}`).join("\n");
+    let blob = new Blob([csv], { type: "text/csv" });
+    let link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "Attendance_Log.csv";
+    link.click();
+}
+</script>
+
+</body>
+</html>
